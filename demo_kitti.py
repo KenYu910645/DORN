@@ -5,13 +5,16 @@ import scipy.io as sio
 import argparse
 import os
 import pdb
+import glob 
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-parser.add_argument('--filename', type=str, default='./data/KITTI/demo_01.png', help='path to an image')
-parser.add_argument('--outputroot', type=str, default='./result/KITTI', help='output path')
+# parser.add_argument('--filename', type=str, default='./data/KITTI/demo_01.png', help='path to an image')
+parser.add_argument('--input_dir', type=str, default='/home/lab530/KenYu/kitti/training/image_2/')
+parser.add_argument('--outputroot', type=str, default='/home/lab530/KenYu/kitti/training/image_depth', help='output path')
 
-caffe.set_mode_gpu()
-caffe.set_device(0)
+# caffe.set_mode_gpu()
+caffe.set_mode_cpu()
+# caffe.set_device(0)
 net = caffe.Net('models/KITTI/deploy.prototxt', 'models/KITTI/cvpr_kitti.caffemodel', caffe.TEST)
 pixel_means = np.array([[[103.0626, 115.9029, 123.1516]]])
 
@@ -54,18 +57,40 @@ def depth_prediction(filename):
     #ord_score = ord_score*256.0
 
 args = parser.parse_args()
-depth = depth_prediction(args.filename)
-depth = depth*256.0
-depth = depth.astype(np.uint16)
-img_id = args.filename.split('/')
-img_id = img_id[len(img_id)-1]
-img_id = img_id[0:len(img_id)-4]
-if not os.path.exists(args.outputroot):
-    os.makedirs(args.outputroot)
-cv2.imwrite(str(args.outputroot + '/' + img_id + '_pred.png'), depth)
 
 
+f_list = []
+TRAIN_TXT = "/home/lab530/KenYu/visualDet3D/visualDet3D/data/kitti/chen_split/val.txt"
+with open(TRAIN_TXT, "r") as f:
+    f_list = f.readlines()
+f_list = [f.rstrip("\n") for f in f_list]
+print("Total " + str(len(f_list)) + " assigned file found in " + TRAIN_TXT)
 
+# 
+exist_fn = [fn.split('.')[0] for fn in os.listdir(args.outputroot)]
+print("Total " + str(len(exist_fn)) + " existed file found in " + str(args.outputroot) + ", will try to skip those")
 
+# Filter files if they already exist in target directory
+doable_fns = [fn for fn in f_list if not fn in exist_fn]
+print("Number of doable files : " + str(len(doable_fns)))
 
+# file_list = glob.glob( os.path.join( args.input_dir, "*.png") )
+file_list = [ os.path.join( args.input_dir, fn + ".png")  for fn in doable_fns]
+print("Total number of input file " + str(len(file_list)))
+# print(file_list)
 
+for i, f_name in enumerate(file_list):
+    # depth = depth_prediction(args.filename)
+    depth = depth_prediction(f_name)
+    depth = depth*256.0
+    depth = depth.astype(np.uint16)
+    # img_id = args.filename.split('/')
+    img_id = f_name.split('/')
+    img_id = img_id[len(img_id)-1]
+    img_id = img_id[0:len(img_id)-4]
+    if not os.path.exists(args.outputroot):
+        os.makedirs(args.outputroot)
+    cv2.imwrite(str(args.outputroot + '/' + img_id + '.png'), depth)
+    
+    # print("Process file (" + {str(i)} + "/" + str(len(file_list)) + ")" )
+    print("Process file ({}/{})".format(i, len(file_list)))
